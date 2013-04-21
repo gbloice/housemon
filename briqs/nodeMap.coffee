@@ -17,6 +17,7 @@
 # in this file. If you override settings, the "replay" briq may no longer work.
 
 fs = require 'fs'
+_ = require 'underscore'
 
 # this is still used for parsing logs which do not include announcer packets
 # TODO: needs to be time-dependent, since the config can change over time
@@ -48,6 +49,12 @@ exports.rf12nodes =
 # this section is only used by the 'rf12-replay' briq
 exports.rf12devices =
   'usb-A40117UK':
+    recvid: 1
+    group: 5
+    band: 868
+
+# the default is used by the "reprocess" briq when no other info is available
+exports.rf12default =
     recvid: 1
     group: 5
     band: 868

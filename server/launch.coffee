@@ -2,14 +2,13 @@
 
 console.error 'pid', process.pid, Date() # mark new launch in the error log
 
-global._ = require 'underscore'
-
 # This list is also the order in which everything gets initialised
 state = require './state'
 briqs = require('./briqs') state
 local = require '../local'
 http = require 'http'
 ss = require 'socketstream'
+_ = require 'underscore'
 
 # Auto-load all briqs from a central directory
 briqs.loadAll ->
@@ -83,6 +82,13 @@ ss.http.middleware.append '/logger', ss.http.connect.static './logger'
 server = http.Server ss.http.middleware
 server.listen local.httpPort
 ss.start server
+
+# TODO need a better way to authenticate than this ugly HTTP access hack
+ss.http.router.on '/authenticate', (req, res) ->
+  accept = req._parsedUrl.query is local.password
+  req.session.userId = if accept then 1 else undefined
+  req.session.save (err) ->
+    res.serve 'main'
 
 # This event is periodically pushed to the clients to make them, eh, "tick"
 # special care is taken to synchronise to the exact start of a clock second

@@ -4,7 +4,7 @@ exports.info =
   connections:
     feeds:
       'status': 'collection'
-      'reprocess': 'event'
+      'reprocess.status': 'event'
       'minutes': 'event'
     results:
       'archive': 'dir'
@@ -14,6 +14,7 @@ exports.info =
 state = require '../server/state'
 fs = require 'fs'
 async = require 'async'
+_ = require 'underscore'
 
 SLOTSIZE_MIN = 60 # each archive slot holds 60 minutes of aggragated values
 SLOTSIZE_MS = SLOTSIZE_MIN * 60 * 1000 # archive slot size in milliseconds
@@ -38,6 +39,10 @@ aggregated = {} # in-memory cache of aggregated values
 occasionalMapSave = _.debounce ->
   fs.writeFile ARCHMAP_PATH, JSON.stringify archMap, null, 2
 , 3000
+
+# also aggregates all reprocessed values, collecting the results in memory
+# TODO need to flush more often, since complete reprocess will fill up memory
+#   perhaps track these slots and trigger on reprocess.{start,end} events?
 
 archiveValue = (time, param, value) ->
   # locate (or create) the proper collector slot in the aggregation cache
@@ -68,7 +73,8 @@ storeValue = (obj, oldObj) ->
 
 saveToFile = (seg, slots, id, cb) ->
   path = "#{ARCHIVE_PATH}/p#{seg}/p#{seg}-#{id}.dat"
-  console.info 'save', path, slots
+  console.info 'save', path
+  # TODO no need to read files, could just seek and write over existing slots
   fs.readFile path, (err, data) ->
     unless data?
       data = new Buffer(BYTES_PER_SLOT * FILESIZE)
@@ -114,9 +120,9 @@ cronTask = (minutes) ->
 exports.factory = class
   constructor: ->
     state.on 'set.status', storeValue
-    state.on 'reprocess', archiveValue
+    state.on 'reprocess.status', archiveValue
     state.on 'minutes', cronTask
   destroy: ->
     state.off 'set.status', storeValue
-    state.off 'reprocess', archiveValue
+    state.off 'reprocess.status', archiveValue
     state.off 'minutes', cronTask

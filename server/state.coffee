@@ -1,6 +1,7 @@
 # Manage the state which is shared with all clients
 events = require 'eventemitter2'
 async = require 'async'
+_ = require 'underscore'
 redis = require 'redis'
 db = null
 
@@ -21,7 +22,7 @@ for k,v of process
 # if the object has no "id", a new one will be assigned
 # if the object has no "key", the old copy will be deleted
 
-module.exports = state = new events.EventEmitter2
+module.exports = state = new events.EventEmitter2(wildcard: true)
 
 #state.onAny (args...) ->
 #  console.info '>', @event, args...
