@@ -7,12 +7,17 @@ module.exports = (ng) ->
     ($scope, rpc) ->
 
       selection = {}
-      lastKey = null # TODO temp, to make redraw on hours change work
+      lastKey = undefined
+      dataPoints = undefined
+      period = undefined
+
+      graph = new Dygraph 'chart'
 
       $scope.setGraph = (key) ->
+        lastKey = undefined # prevent status events from interfering
+
         selection = {}
         selection[key] = true
-        lastKey = key
 
         period = ($scope.hours or 1) * 3600000
         promise = rpc.exec 'host.api', 'rawRange', key, -period, 0
@@ -20,28 +25,27 @@ module.exports = (ng) ->
           return  unless values
 
           info = $scope.status.find key
-          console.info "graph", values.length, key, info
 
-          options =
-            xaxis:
-              mode: 'time'
-              timeMode: 'local'
-            yaxis:
-              autoscale: true
-            mouse:
-              track: true
-              sensibility: 10
-              trackFormatter: myFormatter
-
-          data = for i in [0...values.length] by 2
-            [
-              parseInt values[i+1]
+          dataPoints = []
+          for i in [0...values.length] by 2
+            dataPoints.push [
+              new Date(parseInt values[i+1])
               adjustValue parseInt(values[i]), info
             ]
 
-          # TODO big nono: DOM access inside controller!
-          chart = $('#chart')[0]
-          graph = Flotr.draw chart, [ label: key, data: data ], options
+          lastKey = key # now we can accept status change events
+          isRate = info.unit in [ 'W', 'km/h' ]
+
+          graph.updateOptions
+            file: dataPoints
+            stepPlot: isRate
+            fillGraph: isRate
+            includeZero: isRate
+            legend: "always"
+            labels: [ "", info.key ]
+            labelsSeparateLines: true
+            ylabel: info.unit
+            showRangeSelector: true
 
       # TODO open page with fixed choice, for testing convenience only
       $scope.setGraph 'meterkast - Usage house'
@@ -58,19 +62,17 @@ module.exports = (ng) ->
       #   redrawGraph()
 
       $scope.$on 'set.status', (event, obj, oldObj) ->
-        # TODO works ok, but does a very inefficient full fetch on each change!
-        $scope.setGraph obj.key  if selection[obj.key]
+        if obj.key is lastKey
+          dataPoints.push [ new Date(obj.time), obj.value ]
+          # remove any earlier points outside the requested $scope.hours range
+          while dataPoints[0][0].getTime() < obj.time - period
+            dataPoints.shift()
+          graph.updateOptions file: dataPoints
 
       $scope.hoursChanged = _.debounce ->
         $scope.setGraph lastKey
       , 500
   ]
-
-myFormatter = (obj) ->
-  # default shows millis, so we need to convert to a date + time
-  d = new Date Math.floor obj.x
-  t = Flotr.Date.format d, '%b %d, %H:%M:%S', 'local'
-  " #{t} - #{obj.y} "
 
 # TODO this duplicates the same code on the server, see status.coffee
 adjustValue = (value, info) ->
