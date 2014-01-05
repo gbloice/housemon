@@ -1,6 +1,4 @@
-archive/
-client/static/assets/
-histdata/
-logger/
-node_modules/
-uploads/
+bower_components
+node_modules
+/logger
+/storage
